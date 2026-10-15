@@ -43,6 +43,7 @@ async function api(path, options = {}) {
 
 function bindEvents() {
   $("scan-btn").addEventListener("click", scanNetwork);
+  $("scan-rtsp-btn").addEventListener("click", scanRtsp);
   $("add-btn").addEventListener("click", () => openModal(null));
   $("cancel-btn").addEventListener("click", closeModal);
   $("save-btn").addEventListener("click", saveCamera);
@@ -131,7 +132,29 @@ async function scanNetwork() {
     showStatus(err.message, true);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Scan network";
+    btn.textContent = "Scan network (ONVIF)";
+  }
+}
+
+async function scanRtsp() {
+  const btn = $("scan-rtsp-btn");
+  btn.disabled = true;
+  btn.textContent = "Scanning...";
+  showStatus("Probing the local subnet for open RTSP ports...", false);
+  try {
+    const data = await api("/api/scan-rtsp", { method: "POST" });
+    state.discovered = data.devices;
+    renderDiscovery();
+    if (data.devices.length === 0) {
+      showStatus("No open RTSP ports found.", false);
+    } else {
+      showStatus(`Found ${data.devices.length} RTSP endpoint(s).`, false);
+    }
+  } catch (err) {
+    showStatus(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Scan RTSP (port 554)";
   }
 }
 
@@ -147,10 +170,12 @@ function renderDiscovery() {
 
     const info = document.createElement("div");
     const name = document.createElement("strong");
-    name.textContent = d.name || d.hardware || "Unknown camera";
+    name.textContent =
+      d.name || d.hardware || (d.source === "rtsp" ? "RTSP camera" : "Unknown camera");
     const detail = document.createElement("span");
     detail.className = "discovery-detail";
-    detail.textContent = `${d.ip}:${d.port}`;
+    const portLabel = d.source === "rtsp" ? `${d.ip}:${d.port} (RTSP)` : `${d.ip}:${d.port}`;
+    detail.textContent = portLabel;
     info.append(name, document.createElement("br"), detail);
 
     item.append(info);
@@ -174,9 +199,12 @@ function renderDiscovery() {
 
 function openModal(prefill) {
   state.editingId = prefill && prefill.id ? prefill.id : null;
+  const isRtsp = !!(prefill && prefill.discovered && prefill.discovered.source === "rtsp");
   $("test-result").classList.add("hidden");
   $("meta-info").classList.add("hidden");
   $("modal-title").textContent = state.editingId ? "Edit camera" : "Add camera";
+  $("rtsp-hint").classList.toggle("hidden", !isRtsp);
+  $("test-btn").disabled = isRtsp;
 
   $("f-name").value = "";
   $("f-ip").value = "";
@@ -189,11 +217,14 @@ function openModal(prefill) {
   if (prefill) {
     if (prefill.discovered) {
       const d = prefill.discovered;
-      $("f-name").value = d.name || d.hardware || `Camera ${d.ip}`;
+      $("f-name").value =
+        d.name || d.hardware || (isRtsp ? `RTSP camera ${d.ip}` : `Camera ${d.ip}`);
       $("f-ip").value = d.ip;
       $("f-port").value = d.port;
       $("f-service").value = d.service_url || "";
-      $("f-pass").setAttribute("required", "required");
+      if (!isRtsp) {
+        $("f-pass").setAttribute("required", "required");
+      }
     } else {
       $("f-name").value = prefill.name || "";
       $("f-ip").value = prefill.ip || "";
@@ -215,6 +246,7 @@ function closeModal() {
   $("modal-backdrop").classList.add("hidden");
   $("f-pass").removeAttribute("required");
   $("f-pass").placeholder = "";
+  $("test-btn").disabled = false;
   state.editingId = null;
 }
 

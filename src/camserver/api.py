@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from . import __version__, discovery, onvif
+from . import __version__, discovery, netscan, onvif
 from .models import (
     CameraPublic,
     CameraUpsert,
@@ -169,6 +170,33 @@ async def scan_network(request: Request) -> ScanResponse:
         for d in found
     ]
     devices.sort(key=lambda d: d.ip)
+    return ScanResponse(devices=devices)
+
+
+@router.post("/scan-rtsp", response_model=ScanResponse)
+async def scan_rtsp_network(request: Request) -> ScanResponse:
+    settings = request.app.state.settings
+    limiter: RateLimiter = request.app.state.rtsp_scan_limiter
+    client_ip = request.client.host if request.client else "unknown"
+    if not limiter.allow(client_ip):
+        raise HTTPException(status_code=429, detail="scan rate limit exceeded")
+
+    subnets = settings.scan_subnets_list or netscan.detect_subnets()
+    try:
+        candidates = await netscan.scan_rtsp(
+            subnets,
+            ports=settings.scan_ports_tuple,
+            timeout=settings.scan_port_timeout,
+        )
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"port scan failed: {exc}") from exc
+
+    known_ips = {c.ip for c in request.app.state.store.list()}
+    devices = [
+        DiscoveredDevice(ip=c.ip, port=c.port, known=c.ip in known_ips, source="rtsp")
+        for c in candidates
+    ]
+    devices.sort(key=lambda d: ipaddress.ip_address(d.ip))
     return ScanResponse(devices=devices)
 
 

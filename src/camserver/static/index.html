@@ -10,7 +10,8 @@
     <header class="topbar">
       <h1>CamServer</h1>
       <div class="actions">
-        <button id="scan-btn" type="button">Scan network</button>
+        <button id="scan-btn" type="button">Scan network (ONVIF)</button>
+        <button id="scan-rtsp-btn" type="button">Scan RTSP (port 554)</button>
         <button id="add-btn" type="button" class="primary">Add camera</button>
       </div>
     </header>
@@ -21,7 +22,8 @@
       <section id="discovery" class="hidden">
         <h2>Discovered cameras</h2>
         <p class="hint">Cameras already configured are marked. Click <em>Add</em> to
-          provide credentials for a newly found stream.</p>
+          provide credentials for a newly found stream. RTSP-only cameras have no
+          discovery protocol, so they are found by probing the standard RTSP ports.</p>
         <ul id="discovery-list" class="discovery-list"></ul>
       </section>
 
@@ -37,6 +39,10 @@
     <div id="modal-backdrop" class="modal-backdrop hidden">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <h2 id="modal-title">Add camera</h2>
+        <p id="rtsp-hint" class="hint hidden">
+          RTSP-only camera found by port scan. Paste its <code>rtsp://</code> stream
+          URL below (the ONVIF test does not apply).
+        </p>
         <form id="camera-form" autocomplete="off">
           <label>
             Name

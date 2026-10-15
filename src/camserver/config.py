@@ -37,11 +37,25 @@ class Settings(BaseSettings):
 
     scan_rate_limit: float = 30.0
 
+    # RTSP port scan (pure-RTSP cameras have no discovery protocol)
+    scan_subnets: str = ""  # comma-separated CIDRs; empty = auto-detect local subnets
+    scan_ports: str = "554,8554"
+    scan_port_timeout: float = 1.0
+
     log_level: str = "info"
 
     @property
     def allowed_hosts_list(self) -> list[str]:
         return [h.strip().lower() for h in self.allowed_hosts.split(",") if h.strip()]
+
+    @property
+    def scan_subnets_list(self) -> list[str]:
+        return [s.strip() for s in self.scan_subnets.split(",") if s.strip()]
+
+    @property
+    def scan_ports_tuple(self) -> tuple[int, ...]:
+        ports = [int(p) for p in self.scan_ports.split(",") if p.strip().isdigit()]
+        return tuple(ports) if ports else (554,)
 
     @property
     def secret_key_path(self) -> Path:

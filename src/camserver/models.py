@@ -72,6 +72,7 @@ class DiscoveredDevice(BaseModel):
     serial: str | None = None
     scopes: list[str] = []
     known: bool = False
+    source: str = "onvif"  # "onvif" (WS-Discovery) or "rtsp" (port scan)
 
 
 class ScanResponse(BaseModel):

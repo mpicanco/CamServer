@@ -11,6 +11,8 @@ live.
 ## Features
 
 - **Network scan** button: multicast WS-Discovery probe finds ONVIF cameras.
+- **RTSP port scan** button: probes the local subnet for open RTSP ports (554/8554)
+  to find cameras that don't speak ONVIF.
 - **Credential prompt**: when a new camera is found, ask for its
   username/password, test the connection, and resolve the RTSP URL via ONVIF
   `GetStreamUri`.
@@ -100,6 +102,9 @@ Important ones:
 | `CAMSERVER_DATA_DIR` | `data` | Where the DB and secret key live. |
 | `CAMSERVER_CREDS_IN_URL` | `false` | Put RTSP credentials in the ffmpeg URL (see Security). |
 | `CAMSERVER_ALLOWED_HOSTS` | _(empty)_ | Extra `Host` header values to allow (comma-separated). |
+| `CAMSERVER_SCAN_SUBNETS` | _(empty)_ | Subnets to port-scan for RTSP cameras (auto-detect if empty). |
+| `CAMSERVER_SCAN_PORTS` | `554,8554` | RTSP ports to probe. |
+| `CAMSERVER_SCAN_PORT_TIMEOUT` | `1.0` | Connect timeout per host during port scan. |
 
 ## Security
 
@@ -142,7 +147,9 @@ Browser ──HTTP──▶ FastAPI/uvicorn ──▶ StreamManager ──▶ ff
 ```
 
 1. **Discovery** sends a WS-Discovery `Probe` (UDP multicast to
-   `239.255.255.250:3702`) and parses `ProbeMatch` responses.
+   `239.255.255.250:3702`) and parses `ProbeMatch` responses. For pure-RTSP
+   cameras (no ONVIF), a separate **port scan** (`src/camserver/netscan.py`)
+   probes the standard RTSP ports on each address of the local subnet.
 2. **ONVIF** (`src/camserver/onvif.py`) talks SOAP with WS-Security
    `UsernameToken` (password digest) to `GetDeviceInformation`,
    `GetServices`/`GetProfiles` and `GetStreamUri`, resolving each camera's RTSP
@@ -170,6 +177,7 @@ src/camserver/
   models.py      # API models
   onvif.py       # minimal ONVIF SOAP client
   discovery.py   # WS-Discovery multicast scanner
+  netscan.py     # RTSP port scanner (cameras without ONVIF)
   stream.py      # ffmpeg -> MJPEG streaming
   security.py    # CSRF / Host / headers / rate limiting
   api.py         # HTTP routes

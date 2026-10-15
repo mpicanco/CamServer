@@ -58,6 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.secret_box = secret_box
     app.state.streams = streams
     app.state.scan_limiter = RateLimiter(1, settings.scan_rate_limit)
+    app.state.rtsp_scan_limiter = RateLimiter(1, settings.scan_rate_limit)
 
     # Middleware order: last added = outermost.
     app.add_middleware(CSRFMiddleware)
