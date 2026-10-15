@@ -1,0 +1,34 @@
+[Unit]
+Description=CamServer camera web server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=camserver
+Group=camserver
+WorkingDirectory=/opt/camserver
+Environment=CAMSERVER_HOST=0.0.0.0
+Environment=CAMSERVER_PORT=8000
+Environment=CAMSERVER_DATA_DIR=/var/lib/camserver
+ExecStart=/opt/camserver/.venv/bin/python -m camserver
+Restart=on-failure
+RestartSec=3
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/camserver
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

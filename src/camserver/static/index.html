@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CamServer</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>CamServer</h1>
+      <div class="actions">
+        <button id="scan-btn" type="button">Scan network</button>
+        <button id="add-btn" type="button" class="primary">Add camera</button>
+      </div>
+    </header>
+
+    <div id="status" class="status hidden"></div>
+
+    <main>
+      <section id="discovery" class="hidden">
+        <h2>Discovered cameras</h2>
+        <p class="hint">Cameras already configured are marked. Click <em>Add</em> to
+          provide credentials for a newly found stream.</p>
+        <ul id="discovery-list" class="discovery-list"></ul>
+      </section>
+
+      <section id="cameras">
+        <h2>Cameras</h2>
+        <div id="camera-grid" class="camera-grid"></div>
+        <p id="empty-hint" class="hint hidden">
+          No cameras yet. Click <em>Scan network</em> or <em>Add camera</em>.
+        </p>
+      </section>
+    </main>
+
+    <div id="modal-backdrop" class="modal-backdrop hidden">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <h2 id="modal-title">Add camera</h2>
+        <form id="camera-form" autocomplete="off">
+          <label>
+            Name
+            <input id="f-name" type="text" required maxlength="128" />
+          </label>
+          <label>
+            IP address
+            <input id="f-ip" type="text" required placeholder="192.168.1.50" />
+          </label>
+          <div class="row">
+            <label>
+              Port (ONVIF)
+              <input id="f-port" type="number" value="80" min="1" max="65535" />
+            </label>
+            <label>
+              ONVIF service URL <span class="optional">(optional)</span>
+              <input id="f-service" type="text" placeholder="auto" />
+            </label>
+          </div>
+          <label>
+            Username
+            <input id="f-user" type="text" autocomplete="off" />
+          </label>
+          <label>
+            Password
+            <input id="f-pass" type="password" autocomplete="new-password" />
+          </label>
+          <label>
+            RTSP URL <span class="optional">(filled by test, or manual)</span>
+            <input id="f-rtsp" type="text" placeholder="rtsp://..." />
+          </label>
+          <div id="test-result" class="test-result hidden"></div>
+          <div id="meta-info" class="meta-info hidden"></div>
+        </form>
+        <div class="modal-actions">
+          <button id="test-btn" type="button">Test connection</button>
+          <button id="cancel-btn" type="button">Cancel</button>
+          <button id="save-btn" type="button" class="primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
