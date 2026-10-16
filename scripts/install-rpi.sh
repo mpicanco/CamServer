@@ -21,9 +21,9 @@ fi
 
 echo "==> Installing uv (if missing)"
 if ! command -v uv >/dev/null 2>&1; then
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="$HOME/.local/bin:$PATH"
+  curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 fi
+UV_BIN="$(command -v uv)"
 
 echo "==> Creating system user '${APP_USER}'"
 if ! id -u "${APP_USER}" >/dev/null 2>&1; then
@@ -40,7 +40,7 @@ echo "==> Creating data directory ${DATA_DIR}"
 install -d -o "${APP_USER}" -g "${APP_USER}" -m 700 "${DATA_DIR}"
 
 echo "==> Installing dependencies"
-sudo -u "${APP_USER}" bash -c "cd ${APP_DIR} && uv sync --locked"
+sudo -u "${APP_USER}" bash -c "cd ${APP_DIR} && ${UV_BIN} sync --locked"
 
 echo "==> Installing systemd service"
 cp "${APP_DIR}/scripts/camserver.service" /etc/systemd/system/camserver.service
