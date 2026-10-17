@@ -19,6 +19,98 @@ class StreamError(Exception):
     pass
 
 
+# Common RTSP path suffixes used to probe a camera whose ONVIF interface is
+# unavailable. Ordered roughly by popularity so the common case is found early.
+RTSP_PROBE_PATHS = (
+    "",
+    "Streaming/Channels/101",
+    "Streaming/Channels/1",
+    "stream1",
+    "11",
+    "live",
+    "h264/ch1/main/av_stream",
+    "cam/realmonitor?channel=1&subtype=0",
+    "h264",
+    "media/video1",
+    "av0_0",
+    "unicast",
+)
+
+
+def _probe_urls(ip: str, port: int, username: str, password: str) -> list[str]:
+    host = f"[{ip}]" if ":" in ip and not ip.startswith("[") else ip
+    userinfo = f"{quote(username, safe='')}:{quote(password, safe='')}"
+    base = f"rtsp://{userinfo}@{host}:{port}"
+    return [base + (f"/{p}" if p else "") for p in RTSP_PROBE_PATHS]
+
+
+async def _rtsp_url_works(
+    ffmpeg_binary: str, url: str, rtsp_transport: str, timeout: float
+) -> bool:
+    proc = await asyncio.create_subprocess_exec(
+        ffmpeg_binary,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-rtsp_transport",
+        rtsp_transport,
+        "-stimeout",
+        str(int(timeout * 1_000_000)),
+        "-i",
+        url,
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "1",
+        "-f",
+        "null",
+        "-",
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    try:
+        code = await asyncio.wait_for(proc.wait(), timeout=timeout + 5)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        return False
+    return code == 0
+
+
+async def probe_rtsp_url(
+    settings: Settings,
+    ip: str,
+    port: int,
+    username: str,
+    password: str,
+    timeout: float = 4.0,
+    concurrency: int = 3,
+) -> str | None:
+    """Return the first RTSP URL (from typical formats) that ffmpeg can read."""
+    urls = _probe_urls(ip, port, username, password)
+    sem = asyncio.Semaphore(concurrency)
+
+    async def check(url: str) -> str | None:
+        async with sem:
+            if await _rtsp_url_works(
+                settings.ffmpeg_binary, url, settings.rtsp_transport, timeout
+            ):
+                return url
+        return None
+
+    tasks = [asyncio.create_task(check(u)) for u in urls]
+    try:
+        for coro in asyncio.as_completed(tasks):
+            url = await coro
+            if url:
+                return url
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+    return None
+
+
 def rtsp_url_with_auth(rtsp_url: str, username: str, password: str) -> str:
     """Inject username/password into an rtsp:// URL (used when creds_in_url is set)."""
     parts = urlsplit(rtsp_url)

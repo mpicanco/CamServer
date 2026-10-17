@@ -1,2 +1,18 @@
  Session   Webcam RTSP/ONVIF streaming server
   Continue  opencode -s ses_ebff24149ffejukrpaxwxbV4LQ
+  
+  
+opencode -s ses_ebb94b1d9ffeEEvHy3KrnJsndp
+  
+  
+  
+  
+  
+  marco@PiCenter:~/CamServer $ sudo ./scripts/install-rpi.sh 
+==> Installing ffmpeg (if missing)
+==> Creating system user 'camserver'
+==> Copying application to /opt/camserver
+==> Creating data directory /var/lib/camserver
+==> Installing dependencies
+bash: line 1: uv: command not found
+

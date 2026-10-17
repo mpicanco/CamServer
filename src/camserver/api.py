@@ -20,7 +20,7 @@ from .models import (
 )
 from .security import CSRF_COOKIE, CSRFMiddleware, RateLimiter
 from .store import CameraRecord
-from .stream import StreamError, StreamManager
+from .stream import StreamError, StreamManager, probe_rtsp_url
 
 logger = logging.getLogger(__name__)
 
@@ -202,22 +202,63 @@ async def scan_rtsp_network(request: Request) -> ScanResponse:
 
 @router.post("/cameras/test", response_model=TestCameraResponse)
 async def test_camera(request: Request, payload: TestCameraRequest) -> TestCameraResponse:
-    if not payload.username or not payload.password:
+    username = payload.username
+    password = payload.password
+
+    if payload.camera_id and (not username or not password):
+        stored = request.app.state.store.get(payload.camera_id)
+        if stored is None:
+            raise HTTPException(status_code=404, detail="camera not found")
+        if not username:
+            username = stored.username
+        if not password and stored.password_enc:
+            try:
+                password = request.app.state.secret_box.decrypt(stored.password_enc)
+            except Exception:  # noqa: BLE001
+                logger.exception("unable to decrypt stored password")
+                raise HTTPException(
+                    status_code=500, detail="unable to decrypt stored password"
+                ) from None
+
+    if not username or not password:
         raise HTTPException(status_code=422, detail="username and password are required")
 
     service_url = payload.service_url
     if not service_url:
         service_url = f"http://{payload.ip}:{payload.port}/onvif/device_service"
 
+    result: dict[str, str | None] | None = None
+    onvif_error = "connection failed"
     try:
         result = await asyncio.to_thread(
-            onvif.test_camera, service_url, payload.username, payload.password
+            onvif.test_camera, service_url, username, password
         )
     except onvif.OnvifError as exc:
-        return TestCameraResponse(ok=False, error=str(exc))
+        onvif_error = str(exc)
     except Exception:  # noqa: BLE001
         logger.exception("unexpected ONVIF test error")
-        return TestCameraResponse(ok=False, error="unexpected error")
+        onvif_error = "unexpected error"
+
+    if result is None:
+        settings = request.app.state.settings
+        try:
+            rtsp_url = await probe_rtsp_url(
+                settings, payload.ip, payload.port, username, password
+            )
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=502, detail="ffmpeg not found on server"
+            ) from None
+        if not rtsp_url:
+            return TestCameraResponse(
+                ok=False, error=f"no working RTSP URL found ({onvif_error})"
+            )
+        result = {
+            "rtsp_url": rtsp_url,
+            "manufacturer": None,
+            "model": None,
+            "serial": None,
+        }
 
     return TestCameraResponse(
         ok=True,

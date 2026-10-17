@@ -5,6 +5,8 @@ const state = {
   cameras: [],
   discovered: [],
   editingId: null,
+  editingHasPassword: false,
+  isRtsp: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -48,6 +50,9 @@ function bindEvents() {
   $("cancel-btn").addEventListener("click", closeModal);
   $("save-btn").addEventListener("click", saveCamera);
   $("test-btn").addEventListener("click", testConnection);
+  for (const id of ["f-name", "f-ip", "f-port", "f-service", "f-user", "f-pass", "f-rtsp"]) {
+    $(id).addEventListener("input", updateButtons);
+  }
   $("modal-backdrop").addEventListener("click", (e) => {
     if (e.target === $("modal-backdrop")) closeModal();
   });
@@ -199,12 +204,13 @@ function renderDiscovery() {
 
 function openModal(prefill) {
   state.editingId = prefill && prefill.id ? prefill.id : null;
+  state.editingHasPassword = !!(prefill && prefill.has_password);
   const isRtsp = !!(prefill && prefill.discovered && prefill.discovered.source === "rtsp");
+  state.isRtsp = isRtsp;
   $("test-result").classList.add("hidden");
   $("meta-info").classList.add("hidden");
   $("modal-title").textContent = state.editingId ? "Edit camera" : "Add camera";
   $("rtsp-hint").classList.toggle("hidden", !isRtsp);
-  $("test-btn").disabled = isRtsp;
 
   $("f-name").value = "";
   $("f-ip").value = "";
@@ -240,14 +246,25 @@ function openModal(prefill) {
 
   $("modal-backdrop").classList.remove("hidden");
   $("f-name").focus();
+  updateButtons();
 }
 
 function closeModal() {
   $("modal-backdrop").classList.add("hidden");
   $("f-pass").removeAttribute("required");
   $("f-pass").placeholder = "";
-  $("test-btn").disabled = false;
   state.editingId = null;
+  state.editingHasPassword = false;
+  state.isRtsp = false;
+  updateButtons();
+}
+
+function updateButtons() {
+  const form = currentForm();
+  const hasCreds =
+    !!form.username && (!!form.password || (state.editingId && state.editingHasPassword));
+  $("test-btn").disabled = state.isRtsp || !form.ip || !hasCreds;
+  $("save-btn").disabled = !form.name || !form.ip || !form.rtsp_url;
 }
 
 function currentForm() {
@@ -264,15 +281,23 @@ function currentForm() {
 
 async function testConnection() {
   const form = currentForm();
-  if (!form.ip || !form.username || !form.password) {
-    showStatus("IP, username and password are required to test", true);
+  if (!form.ip) {
+    showStatus("IP address is required to test", true);
+    return;
+  }
+  if (!form.username && !(state.editingId && state.editingHasPassword)) {
+    showStatus("Username is required to test", true);
+    return;
+  }
+  if (!form.password && !(state.editingId && state.editingHasPassword)) {
+    showStatus("Password is required to test", true);
     return;
   }
   const result = $("test-result");
   const meta = $("meta-info");
   result.classList.remove("hidden");
   result.classList.remove("ok", "err");
-  result.textContent = "Testing ONVIF connection...";
+  result.textContent = "Testing connection...";
 
   const btn = $("test-btn");
   btn.disabled = true;
@@ -280,6 +305,7 @@ async function testConnection() {
     const data = await api("/api/cameras/test", {
       method: "POST",
       body: {
+        camera_id: state.editingId,
         ip: form.ip,
         port: form.port,
         service_url: form.service_url,
@@ -305,7 +331,7 @@ async function testConnection() {
     result.classList.add("err");
     result.textContent = err.message;
   } finally {
-    btn.disabled = false;
+    updateButtons();
   }
 }
 
@@ -341,7 +367,7 @@ async function saveCamera() {
   } catch (err) {
     showStatus(err.message, true);
   } finally {
-    saveBtn.disabled = false;
+    updateButtons();
   }
 }
 

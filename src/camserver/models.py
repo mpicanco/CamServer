@@ -80,11 +80,12 @@ class ScanResponse(BaseModel):
 
 
 class TestCameraRequest(BaseModel):
+    camera_id: str | None = None
     service_url: str | None = None
     ip: str
     port: int = 80
-    username: str
-    password: str
+    username: str | None = None
+    password: str | None = None
 
 
 class TestCameraResponse(BaseModel):
